@@ -166,6 +166,7 @@
       '<span class="tag">' + esc(work.type) + '</span>' +
       '</div>'
     ));
+    w.appendChild(el('<a class="btn btn-ghost btn-sm ask-work-btn" data-go="#/intreaba/' + work.id + '"><span>💬</span> Întreabă AI despre această operă</a>'));
     var hasChars = work.characters && work.characters.length;
     var hasSchita = !!work.schita;
     var tabs = el(
@@ -602,6 +603,7 @@
     var node;
     if (h.indexOf("#/opera/") === 0) node = viewWork(h.slice(8));
     else if (h === "#/examen") node = viewExam();
+    else if (h.indexOf("#/intreaba/") === 0) { var aw = byId(decodeURIComponent(h.slice(11))); node = viewAsk(aw ? aw.title : ""); }
     else if (h === "#/intreaba") node = viewAsk();
     else node = viewHome();
     app.innerHTML = "";
