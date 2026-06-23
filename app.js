@@ -45,6 +45,7 @@
       '<div><div class="brand-name">Catedra</div><div class="brand-sub">BAC · Limba română</div></div></div>' +
       '<nav class="nav">' +
       '<button data-go="#/" class="' + (active === "home" ? "active" : "") + '">Bibliotecă</button>' +
+      '<button data-go="#/intreaba" class="' + (active === "ask" ? "active" : "") + '">Întreabă AI</button>' +
       '<button data-go="#/examen" class="nav-cta">Mod examen</button>' +
       '</nav></div></header>'
     );
@@ -456,6 +457,95 @@
     return root;
   }
 
+  /* ---------- Întreabă AI ---------- */
+  function viewAsk(presetWork) {
+    var root = el('<div></div>');
+    root.appendChild(header("ask"));
+
+    var sec = el('<section class="detail-top"><div class="wrap"></div></section>');
+    var w = sec.querySelector(".wrap");
+    w.appendChild(el('<a class="back" data-go="#/">← Înapoi la bibliotecă</a>'));
+    w.appendChild(el('<div class="detail-head"><h1>Întreabă AI</h1></div>'));
+    w.appendChild(el('<div class="detail-meta"><span class="tag accent">Asistent literar</span><span class="tag">strict despre operele de Bac</span></div>'));
+    root.appendChild(sec);
+
+    var panel = el('<section class="panel"><div class="wrap"></div></section>');
+    var pw = panel.querySelector(".wrap");
+    root.appendChild(panel);
+    root.appendChild(footer());
+
+    var workOpts = '<option value="">— general (toate operele) —</option>' +
+      WORKS.slice().sort(function (a, b) { return parseInt(a.year) - parseInt(b.year); })
+        .map(function (x) { return '<option value="' + esc(x.title) + '"' + (presetWork === x.title ? ' selected' : '') + '>' + esc(x.title) + ' — ' + esc(x.author) + '</option>'; }).join("");
+
+    var ask = el(
+      '<div class="ask-card">' +
+      '<p class="ask-intro">Pune o întrebare despre o operă, un personaj, o temă sau un procedeu literar. Asistentul răspunde <strong>doar</strong> la întrebări legate de operele studiate pentru Bacalaureat.</p>' +
+      '<label class="ask-lbl">Operă (opțional, pentru context)</label>' +
+      '<select class="ask-select">' + workOpts + '</select>' +
+      '<label class="ask-lbl">Întrebarea ta</label>' +
+      '<textarea class="ask-input" rows="3" maxlength="1000" placeholder="ex: De ce este Harap-Alb un personaj atipic? Care e tema din Plumb?"></textarea>' +
+      '<div class="ask-suggest"></div>' +
+      '<div class="ask-actions"><button class="btn" data-act="ask">Întreabă</button></div>' +
+      '<div class="ask-answer"></div>' +
+      '</div>'
+    );
+    pw.appendChild(ask);
+
+    var suggestions = [
+      "Care este tema și viziunea despre lume din această operă?",
+      "Cum se încadrează opera în curentul literar?",
+      "Caracterizează personajul principal.",
+      "Ce procedee literare apar și ce rol au?"
+    ];
+    var sg = ask.querySelector(".ask-suggest");
+    suggestions.forEach(function (s) {
+      var c = el('<button class="ask-chip">' + esc(s) + '</button>');
+      c.addEventListener("click", function () { ask.querySelector(".ask-input").value = s; ask.querySelector(".ask-input").focus(); });
+      sg.appendChild(c);
+    });
+
+    var answerSlot = ask.querySelector(".ask-answer");
+    var btn = ask.querySelector('[data-act="ask"]');
+
+    function doAsk() {
+      var question = ask.querySelector(".ask-input").value.trim();
+      var work = ask.querySelector(".ask-select").value;
+      if (!question) { ask.querySelector(".ask-input").focus(); return; }
+      btn.disabled = true; btn.textContent = "Se gândește…";
+      answerSlot.innerHTML = '<div class="loader"><div class="spin"></div><p>Asistentul caută răspunsul…</p></div>';
+
+      fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: question, work: work })
+      }).then(function (r) {
+        return r.json().then(function (data) { return { ok: r.ok, status: r.status, data: data }; });
+      }).then(function (res) {
+        if (!res.ok) {
+          var m = (res.data && res.data.error) || "A apărut o eroare.";
+          if (res.status === 404 || res.status === 405) m = "Asistentul AI funcționează doar pe varianta publicată pe Vercel (nu în previzualizarea locală statică).";
+          answerSlot.innerHTML = '<div class="ask-error fade">' + esc(m) + '</div>';
+        } else {
+          answerSlot.innerHTML = '';
+          var box = el('<div class="prose-wrap fade"><div class="prose ask-prose"></div></div>');
+          box.querySelector(".prose").innerHTML = '<div class="ask-q">„' + esc(question) + '”</div>' + markdown(res.data.answer || "");
+          answerSlot.appendChild(box);
+        }
+      }).catch(function () {
+        answerSlot.innerHTML = '<div class="ask-error fade">Nu m-am putut conecta la asistent. Dacă rulezi local, AI-ul e disponibil doar după publicarea pe Vercel.</div>';
+      }).then(function () {
+        btn.disabled = false; btn.textContent = "Întreabă";
+      });
+    }
+    btn.addEventListener("click", doAsk);
+    ask.querySelector(".ask-input").addEventListener("keydown", function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") doAsk();
+    });
+
+    return root;
+  }
+
   /* ---------- print / PDF ---------- */
   function printNode(node, title) {
     var win = window.open("", "_blank");
@@ -512,6 +602,7 @@
     var node;
     if (h.indexOf("#/opera/") === 0) node = viewWork(h.slice(8));
     else if (h === "#/examen") node = viewExam();
+    else if (h === "#/intreaba") node = viewAsk();
     else node = viewHome();
     app.innerHTML = "";
     app.appendChild(node);

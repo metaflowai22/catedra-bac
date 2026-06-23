@@ -3,3 +3,8 @@
 Thumbs.db
 *.log
 .vscode/
+
+# Secrete — NU urca niciodată cheile API!
+.env
+.env.*
+.vercel
